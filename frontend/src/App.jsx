@@ -4,6 +4,16 @@ import SwarmCursor from './components/SwarmCursor';
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
 const fmtDate = (v) => { try { return new Date(v).toLocaleString(); } catch { return v; } };
+const diseaseName = (label) => {
+  const names = {
+    "No DR": "No Diabetic Retinopathy",
+    "Mild": "Mild Diabetic Retinopathy",
+    "Moderate": "Moderate Diabetic Retinopathy",
+    "Severe": "Severe Diabetic Retinopathy",
+    "Proliferative DR": "Proliferative Diabetic Retinopathy"
+  };
+  return names[label] || label || "Prediction unavailable";
+};
 
 export default function App() {
   const [file, setFile] = useState(null);
@@ -80,7 +90,7 @@ export default function App() {
       </section>
 
       <section className="section workspace" id="workspace">
-        <div className="section-heading"><div><div className="kicker">01 / SCREENING WORKSPACE</div><h2>Start with a fundus image.</h2><p>Upload an image to validate its format and create a screening record.</p></div><div className="demo-badge"><span/> DEMO PIPELINE</div></div>
+        <div className="section-heading"><div><div className="kicker">01 / SCREENING WORKSPACE</div><h2>Start with a fundus image.</h2><p>Upload an image to validate its format and create a screening record.</p></div><div className="demo-badge"><span/>{apiState === 'online' ? 'MODEL API CONNECTED' : 'API OFFLINE'}</div></div>
         <div className="workspace-grid">
           <form className="panel upload-panel" onSubmit={runScreening}>
             <div className="panel-heading"><div className="step-num">01</div><div><h3>Image input</h3><p>Choose a retinal fundus image</p></div></div>
@@ -93,28 +103,103 @@ export default function App() {
 
           <div className="panel result-panel">
             <div className="panel-heading"><div className="step-num blue-step">02</div><div><h3>Screening output</h3><p>Quality checks and model response</p></div><span className="live-label">LIVE VIEW</span></div>
-            {!result ? <div className="empty-result"><div className="empty-graphic"><div className="scan-circle"><ScanEye size={31}/></div><span className="scan-cross cross-a"/><span className="scan-cross cross-b"/></div><h3>Awaiting image input</h3><p>Your screening record and output summary will appear here after upload.</p><div className="empty-checks"><span><CheckCircle2 size={15}/> File validation</span><span><CheckCircle2 size={15}/> Quality heuristics</span><span><CheckCircle2 size={15}/> Report generation</span></div></div> : <div className="result-content">
-              <div className="result-status"><span className="warning-icon"><FlaskConical size={18}/></span><div><b>{result.result?.headline || 'Screening record loaded'}</b><small>Record ID · {result.id?.slice(0, 8)}</small></div></div>
-              <div className="result-grid"><div className="result-tile"><small>Image dimensions</small><b>{result.width} × {result.height}</b></div><div className="result-tile"><small>Basic quality check</small><b className="quality-text">{result.quality}</b></div><div className="result-tile"><small>Model status</small><b className="muted-value">{result.result?.model_status || 'Not configured'}</b></div><div className="result-tile"><small>Confidence score</small><b className="muted-value">—</b></div></div>
-              <div className="notice-box"><Info size={17}/><div><b>Demo mode — no disease prediction</b><p>A trained CNN is not connected. No disease class, severity, or confidence score is inferred from this image.</p></div></div>
-              <div className="output-notes"><b>Workflow notes</b>{(result.result?.visual_notes || []).map((n, i) => <p key={i}><span>{String(i + 1).padStart(2, '0')}</span>{n}</p>)}</div>
-              <button className="secondary-btn report-btn" onClick={() => downloadReport(result.id)}><FileDown size={16}/> Download screening report (CSV)</button>
-            </div>}
+            
+{!result ? (
+  <div className="empty-result">
+    <div className="empty-graphic">
+      <div className="scan-circle"><ScanEye size={31}/></div>
+      <span className="scan-cross cross-a"/>
+      <span className="scan-cross cross-b"/>
+    </div>
+    <h3>Awaiting image input</h3>
+    <p>Your screening record and output summary will appear here after upload.</p>
+    <div className="empty-checks">
+      <span><CheckCircle2 size={15}/> File validation</span>
+      <span><CheckCircle2 size={15}/> Quality heuristics</span>
+      <span><CheckCircle2 size={15}/> Report generation</span>
+    </div>
+  </div>
+) : (
+  <div className="result-content">
+    <div className="result-status">
+      <span className="warning-icon"><FlaskConical size={18}/></span>
+      <div>
+        <b>{result.result?.predicted_class ? `Predicted Condition: ${diseaseName(result.result.predicted_class)}` : result.result?.headline || 'Screening record loaded'}</b>
+        <small>Record ID · {result.id?.slice(0, 8)}</small>
+      </div>
+    </div>
+
+    <div className="result-grid">
+      <div className="result-tile">
+        <small>Image dimensions</small>
+        <b>{result.width} × {result.height}</b>
+      </div>
+      <div className="result-tile">
+        <small>Basic quality check</small>
+        <b className="quality-text">{result.quality}</b>
+      </div>
+      <div className="result-tile">
+        <small>Model status</small>
+        <b className="muted-value">{result.result?.model_status || 'Not configured'}</b>
+      </div>
+      <div className="result-tile">
+        <small>Confidence score</small>
+        <b className="muted-value">
+          {result.result?.confidence != null
+            ? `${(result.result.confidence * 100).toFixed(2)}%`
+            : 'Not available'}
+        </b>
+      </div>
+    </div>
+
+    <div className="notice-box">
+      <Info size={17}/>
+      <div>
+        <b>
+          {result.result?.model_status === 'LOADED'
+            ? 'Educational model prediction'
+            : 'Demo mode — no disease prediction'}
+        </b>
+        <p>
+          {result.result?.model_status === 'LOADED'
+            ? 'The trained model generated this prediction. This is a research prototype, not a medical diagnosis.'
+            : 'A trained CNN prediction is not available for this record.'}
+        </p>
+      </div>
+    </div>
+
+    <div className="output-notes">
+      <b>Workflow notes</b>
+      {(result.result?.visual_notes || []).map((n, i) => (
+        <p key={i}><span>{String(i + 1).padStart(2, '0')}</span>{n}</p>
+      ))}
+    </div>
+
+    <button
+      type="button"
+      className="secondary-btn report-btn"
+      onClick={() => downloadReport(result.id)}
+    >
+      <FileDown size={16}/> Download screening report (CSV)
+    </button>
+  </div>
+)}
+
           </div>
         </div>
-        <div className="safety-line"><ShieldCheck size={17}/><p><b>Clinical safety note:</b> This starter website is not a medical device. Its demo pipeline does not detect retinal disease and must not be used for diagnosis, treatment, or referral decisions.</p></div>
+        <div className="safety-line"><ShieldCheck size={17}/><p><b>Clinical safety note:</b> This website is an educational research prototype, not a medical device. Model predictions must not be used for diagnosis, treatment, or referral decisions.</p></div>
       </section>
 
       <section className="section history-section" id="history">
         <div className="section-heading"><div><div className="kicker">02 / LOCAL DATABASE</div><h2>Recent screenings.</h2><p>Records stored in the backend's SQLite database on this machine.</p></div><button className="secondary-btn refresh-btn" onClick={loadHistory}><History size={16}/> Refresh history</button></div>
         <div className="history-panel">
           <div className="history-head"><span>IMAGE / RECORD</span><span>DATE CREATED</span><span>QUALITY CHECK</span><span>STATUS</span><span></span></div>
-          {history.length === 0 ? <div className="history-empty"><Clock3 size={19}/><span>No records yet. Upload an image to create your first screening entry.</span></div> : history.slice(0, 8).map(item => <div className="history-row" key={item.id}><div className="history-file"><span className="mini-file"><FileImage size={16}/></span><span><b>{item.filename}</b><small>#{item.id.slice(0, 8)} · {item.width}×{item.height}</small></span></div><span className="date-cell">{fmtDate(item.created_at)}</span><span><i className={`quality-dot ${item.quality === 'Basic checks passed' ? 'good' : ''}`}/>{item.quality}</span><span><i className="history-status-dot"/> Demo saved</span><button className="open-record" onClick={() => openHistory(item)} aria-label={`Open ${item.filename}`}><ArrowUpRight size={17}/></button></div>)}
+          {history.length === 0 ? <div className="history-empty"><Clock3 size={19}/><span>No records yet. Upload an image to create your first screening entry.</span></div> : history.slice(0, 8).map(item => <div className="history-row" key={item.id}><div className="history-file"><span className="mini-file"><FileImage size={16}/></span><span><b>{item.filename}</b><small>#{item.id.slice(0, 8)} · {item.width}×{item.height}</small></span></div><span className="date-cell">{fmtDate(item.created_at)}</span><span><i className={`quality-dot ${item.quality === 'Basic checks passed' ? 'good' : ''}`}/>{item.quality}</span><span><i className="history-status-dot"/>{item.status === 'model_complete' ? 'Model complete' : 'Saved record'}</span><button className="open-record" onClick={() => openHistory(item)} aria-label={`Open ${item.filename}`}><ArrowUpRight size={17}/></button></div>)}
           <div className="history-foot"><span><Database size={14}/> {history.length} record{history.length === 1 ? '' : 's'} loaded (up to 100)</span><span>Stored locally · SQLite</span></div>
         </div>
       </section>
 
-      <section className="section about-section" id="about"><div className="about-copy"><div className="kicker">03 / PROJECT OVERVIEW</div><h2>Built for careful<br/><span>computer vision.</span></h2><p>The challenge is to develop a CNN-based system that can classify retinal disease categories, estimate severity, handle image variation, and highlight relevant regions — while making uncertainty clear.</p><p className="about-disclaimer">This starter provides the complete web workflow and a safe model-integration point. Real disease classification remains disabled until a trained model and validation process are supplied.</p></div><div className="feature-list"><div><span><ScanEye size={20}/></span><section><b>Fundus image workflow</b><p>Upload, preview, validate, and save an image screening record.</p></section></div><div><span><Activity size={20}/></span><section><b>CNN integration point</b><p>Swap the clearly marked demo function for your trained TensorFlow or PyTorch model.</p></section></div><div><span><ShieldCheck size={20}/></span><section><b>Explainability-ready</b><p>Designed to add Grad-CAM visualizations and confidence calibration after model validation.</p></section></div><div><span><Database size={20}/></span><section><b>Reproducible records</b><p>Store screening metadata in SQLite and export a compact CSV report.</p></section></div></div></section>
+      <section className="section about-section" id="about"><div className="about-copy"><div className="kicker">03 / PROJECT OVERVIEW</div><h2>Built for careful<br/><span>computer vision.</span></h2><p>The challenge is to develop a CNN-based system that can classify retinal disease categories, estimate severity, handle image variation, and highlight relevant regions — while making uncertainty clear.</p><p className="about-disclaimer">This research prototype uses a trained CNN to generate experimental predictions. Results may be incorrect and require further validation. It must not be used for medical diagnosis or treatment decisions.</p></div><div className="feature-list"><div><span><ScanEye size={20}/></span><section><b>Fundus image workflow</b><p>Upload, preview, validate, and save an image screening record.</p></section></div><div><span><Activity size={20}/></span><section><b>CNN integration point</b><p>Swap the clearly marked demo function for your trained TensorFlow or PyTorch model.</p></section></div><div><span><ShieldCheck size={20}/></span><section><b>Explainability-ready</b><p>Designed to add Grad-CAM visualizations and confidence calibration after model validation.</p></section></div><div><span><Database size={20}/></span><section><b>Reproducible records</b><p>Store screening metadata in SQLite and export a compact CSV report.</p></section></div></div></section>
     </main>
     <footer><a className="brand footer-brand" href="#home"><span className="brand-icon"><ScanEye size={18}/></span><span><b>Retina<span className="blue">Sight</span></b><small>SCREENING STUDIO</small></span></a><span>CNN-Based Retinal Screening</span><span>Demo build · Not for clinical use</span></footer>
   </div>;

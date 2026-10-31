@@ -11,3 +11,7 @@ frontend/.env
 **/__pycache__/
 **/.env
 *.db
+.venv-training/
+__pycache__/
+*.pyc
+.env
