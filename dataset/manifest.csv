@@ -1,0 +1,2 @@
+image_path,label,split,source,notes
+# Add one row per real fundus image. Keep this file header unchanged.

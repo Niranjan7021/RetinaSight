@@ -1,0 +1,13 @@
+**/__pycache__/
+**/.pytest_cache/
+**/.venv/
+**/node_modules/
+**/dist/
+backend/uploads/
+backend/retina_screening.db
+frontend/.env
+**/.pytest_cache/
+**/venv/
+**/__pycache__/
+**/.env
+*.db
