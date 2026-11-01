@@ -3,3 +3,4 @@ Flask-Cors==5.0.1
 Flask-SQLAlchemy==3.1.1
 Pillow==11.2.1
 pytest==8.3.5
+gunicorn
