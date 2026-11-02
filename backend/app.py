@@ -23,7 +23,9 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_BYTES
 db = SQLAlchemy(app)
 CORS(app, resources={r'/api/*': {'origins': '*'}})
 
-MODEL_PATH = BASE_DIR.parent / "models" / "dr_model.pth"
+
+
+from huggingface_hub import hf_hub_download
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -34,6 +36,27 @@ CLASS_NAMES = [
     "Severe",
     "Proliferative DR"
 ]
+
+HF_MODEL_REPO = os.environ.get("HF_MODEL_REPO", "").strip()
+HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
+
+if HF_MODEL_REPO:
+    model_file = hf_hub_download(
+        repo_id=HF_MODEL_REPO,
+        filename="dr_model.pth",
+        token=HF_TOKEN or None
+    )
+    MODEL_PATH = Path(model_file)
+else:
+    MODEL_PATH = Path(
+        os.environ.get(
+            "MODEL_PATH",
+            str(BASE_DIR.parent / "models" / "dr_model.pth")
+        )
+    )
+
+if not MODEL_PATH.is_file():
+    raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
 
 model = models.resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features, 5)
@@ -58,6 +81,7 @@ preprocess = transforms.Compose([
 ])
 
 print(f"Retinal model loaded on {DEVICE}")
+
 
 
 class Screening(db.Model):
